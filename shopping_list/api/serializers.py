@@ -9,3 +9,4 @@ class ShoppingItemSerializer(serializers.ModelSerializer):
             "name",
             "purchased",
         ]
+        read_only_fields = ('id',)
