@@ -1,8 +1,10 @@
 import pytest
 from django.urls import reverse
-from rest_framework.test import APIClient
 from rest_framework import status
 from django.contrib.auth.models import User
+from datetime import datetime, timedelta
+from unittest import mock
+
 
 from shopping_list.models import ShoppingList, ShoppingItem
 
@@ -52,8 +54,8 @@ def test_client_retrieves_only_shopping_lists_they_are_member_of(db, create_auth
     create_shopping_list(another_user, name="Technology")
     response = client.get(url, format="json")
 
-    assert len(response.data) == 1
-    assert response.data[0]["name"] == "Groceries"
+    assert len(response.data["results"]) == 1
+    assert response.data["results"][0]["name"] == "Groceries"
 
 def test_shopping_list_is_retrieve_by_id(db, create_authenticated_client, create_user, create_shopping_list):
     user = create_user()
@@ -65,7 +67,7 @@ def test_shopping_list_is_retrieve_by_id(db, create_authenticated_client, create
     assert response.status_code == status.HTTP_200_OK
     assert response.data["name"] == "Groceries"
 
-def test_shopping_list_includes_only_corresponding_items(db, create_user, create_authenticated_client, create_shopping_list, create_shopping_item):
+def test_shopping_list_includes_only_corresponding_items(db, create_user, create_authenticated_client, create_shopping_list):
     user = create_user()
     client = create_authenticated_client(user)
     shopping_list = create_shopping_list(user)
@@ -76,8 +78,8 @@ def test_shopping_list_includes_only_corresponding_items(db, create_user, create
     url = reverse("shopping_list_detail", args=[shopping_list.id])
     response = client.get(url, format="json")
 
-    assert len(response.data["shopping_items"]) == 1
-    assert response.data["shopping_items"][0]["name"] == "Eggs"
+    assert len(response.data["unpurchased_items"]) == 1
+    assert response.data["unpurchased_items"][0]["name"] == "Eggs"
 
 def test_shopping_list_name_is_changed(db, create_user, create_authenticated_client, create_shopping_list):
     user = create_user()
@@ -123,7 +125,7 @@ def test_valid_shopping_item_is_created(db,create_user, create_authenticated_cli
     user = create_user()
     client = create_authenticated_client(user)
     shopping_list = create_shopping_list(user)
-    url = reverse("add_shopping_item", args=[shopping_list.id])
+    url = reverse("list_add_shopping_item", args=[shopping_list.id])
 
     data = {
         "name": "milk",
@@ -133,12 +135,14 @@ def test_valid_shopping_item_is_created(db,create_user, create_authenticated_cli
 
     assert response.status_code == status.HTTP_201_CREATED
     assert str(ShoppingItem.objects.get()) == "milk"
+    item = ShoppingItem.objects.get(id=response.data["id"])
+    assert item.shopping_list.id == shopping_list.id
 
 def test_create_shopping_item_missing_data_returns_bad_request(db, create_user, create_authenticated_client, create_shopping_list):
     user = create_user()
     client = create_authenticated_client(user)
     shopping_list = create_shopping_list(user)
-    url = reverse("add_shopping_item", args=[shopping_list.id])
+    url = reverse("list_add_shopping_item", args=[shopping_list.id])
 
     data = {
         "name": "milk"
@@ -273,7 +277,7 @@ def test_not_member_of_list_can_not_add_shopping_item(db, create_user, create_au
     shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_list = create_shopping_list(shopping_list_creator)
 
-    url = reverse("add_shopping_item",args=[shopping_list.id])
+    url = reverse("list_add_shopping_item",args=[shopping_list.id])
 
     data = {
         "name": "Milk",
@@ -288,7 +292,7 @@ def test_admin_can_add_shopping_items(db, create_user, admin_client, create_shop
     user = create_user()
     shopping_list = create_shopping_list(user)
 
-    url = reverse("add_shopping_item", args=[shopping_list.id])
+    url = reverse("list_add_shopping_item", args=[shopping_list.id])
 
     data = {
         "name": "Milk",
@@ -365,3 +369,150 @@ def test_admin_can_retrieve_single_shopping_item(db, create_user, create_shoppin
     response = admin_client.get(path=url, format="json")
 
     assert response.status_code == status.HTTP_200_OK
+
+def test_list_shopping_items_is_retrieve_by_shopping_list_member(db,create_user, create_authenticated_client, create_shopping_list, create_shopping_item):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_item_1 = create_shopping_item(name="Chocolate", user=user)
+    create_shopping_item(name="Milk", user=user)
+    url = reverse("list_add_shopping_item",kwargs={"pk": shopping_item_1.shopping_list.id})
+
+    response = client.get(path=url,format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert ShoppingItem.objects.count() == 2
+    assert response.data["results"][0]["name"] == shopping_item_1.name
+
+def test_not_member_can_not_retrieve_shopping_items(db, create_user,create_authenticated_client,create_shopping_list, create_shopping_item):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list_creator = User.objects.create_user("test_user","test@example.com","testpassword")
+    shopping_item_1 = create_shopping_item(name="Chocolate", user=shopping_list_creator)
+
+    url = reverse("list_add_shopping_item",kwargs={"pk": shopping_item_1.shopping_list.id})
+
+    response = client.get(path=url,format="json")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+def test_list_shopping_items_only_the_ones_belonging_to_the_same_shopping_list(db, create_user, create_authenticated_client,create_shopping_list,create_shopping_item):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = ShoppingList.objects.create(name="Groceries")
+    shopping_list.members.add(user)
+    shopping_item = ShoppingItem.objects.create(name="Chocolate", purchased=False, shopping_list= shopping_list)
+
+    another_shopping_list = ShoppingList.objects.create(name="Technology")
+    another_shopping_list.members.add(user)
+    ShoppingItem.objects.create(name="Television", purchased=False, shopping_list= another_shopping_list)
+
+    url = reverse("list_add_shopping_item",kwargs={"pk":shopping_item.shopping_list.id})
+
+    response = client.get(path=url,format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["results"][0]["name"] == shopping_item.name
+    assert ShoppingList.objects.count() == 2
+    
+def test_max_3_shopping_items_on_shopping_list(db,create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    shopping_list = create_shopping_list(user)
+
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Eggs", purchased=False)
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Chocolate", purchased=False)
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Milk", purchased=False)
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Mango", purchased=False)
+
+    url = reverse("shopping_list_detail", args=[shopping_list.id])
+
+    response = client.get(url, format="json")
+
+    assert len(response.data["unpurchased_items"]) == 3
+
+def test_all_shopping_items_on_shopping_list_unpurchased(db,create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    shopping_list = create_shopping_list(user)
+
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Eggs", purchased=False)
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Chocolate", purchased=True)
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Milk", purchased=False)
+
+    url = reverse("shopping_list_detail", args=[shopping_list.id])
+
+    response = client.get(url, format="json")
+
+    assert len(response.data["unpurchased_items"]) == 2
+
+def test_duplicate_item_on_list_bad_request(db,create_user,create_authenticated_client,create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list(user)
+    ShoppingItem.objects.create(shopping_list=shopping_list, name="Milk",purchased=False)
+
+    url = reverse("list_add_shopping_item", args=[shopping_list.id])
+
+    data = {
+        "name": "Milk",
+        "purchased": False
+    }
+
+    response = client.post(path=url, data=data, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert len(shopping_list.shopping_items.all()) == 1
+
+def test_correct_order_shopping_lists(db,create_user, create_authenticated_client):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    old_time = datetime.now() - timedelta(days=1)
+    older_time = datetime.now() - timedelta(days=100)
+
+    url = reverse("all_shopping_lists")
+
+    with mock.patch("django.utils.timezone.now") as mock_now:
+        mock_now.return_value = old_time
+        ShoppingList.objects.create(name="Old").members.add(user)
+
+        mock_now.return_value = older_time 
+        ShoppingList.objects.create(name="Oldest").members.add(user)
+    
+    ShoppingList.objects.create(name="New").members.add(user)
+
+    response = client.get(path=url, format="json")
+
+    assert response.data["results"][0]["name"] == "New"
+    assert response.data["results"][1]["name"] == "Old"
+    assert response.data["results"][2]["name"] == "Oldest"
+
+def test_shopping_lists_order_changed_when_item_marked_purchased(db,create_user,create_authenticated_client):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    older_time = datetime.now() - timedelta(days=20)
+
+    with mock.patch("django.utils.timezone.now") as mock_now:
+        mock_now.return_value = older_time
+        older_list = ShoppingList.objects.create(name="Older")
+        older_list.members.add(user)
+        shopping_item_on_older_list = ShoppingItem.objects.create(name="Milk", purchased=False, shopping_list=older_list)
+
+        ShoppingList.objects.create(name="Recent", last_interaction=datetime.now()-timedelta(days=100)).members.add(user)
+
+        shopping_item_url = reverse("shopping_item_detail", kwargs={"pk": shopping_item_on_older_list.shopping_list.id, "item_pk": shopping_item_on_older_list.id})
+        shopping_lists_url = reverse("all_shopping_lists")
+
+        data = {
+            "purchased": True
+        }
+
+        client.patch(path=shopping_item_url, data=data, format="json")
+
+        response = client.get(shopping_lists_url, format="json")
+
+        assert response.data["results"][1]["name"] == "Recent"
+        assert response.data["results"][0]["name"] == "Older"

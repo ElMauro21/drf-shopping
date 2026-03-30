@@ -6,6 +6,7 @@ from shopping_list.api.permissions import (
     ShoppingItemShoppingListMembersOnly,
     ShoppingListMembersOnly,
 )
+from shopping_list.api.pagination import LargerResultsSetPagination
 
 # Create your views here.
 
@@ -18,7 +19,7 @@ class ListAddShoppingList(generics.ListCreateAPIView):
         return shopping_list
     
     def get_queryset(self):
-        return ShoppingList.objects.filter(members=self.request.user)
+        return ShoppingList.objects.filter(members=self.request.user).order_by("-last_interaction")
     
 
 class ShoppingListDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -26,16 +27,22 @@ class ShoppingListDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ShoppingListSerializer
     permission_classes = [ShoppingListMembersOnly]
 
-class AddShoppingItem(generics.CreateAPIView):
-    queryset = ShoppingItem.objects.all()
-    serializer_class = ShoppingItemSerializer
-    permission_classes = [AllShoppingItemsShoppingListMembersOnly]
-    def perform_create(self, serializer):
-        list_uuid = self.kwargs.get('pk')
-        serializer.save(shopping_list_id=list_uuid)
-
 class ShoppingItemDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = ShoppingItem.objects.all()
     serializer_class = ShoppingItemSerializer
     permission_classes = [ShoppingItemShoppingListMembersOnly]
     lookup_url_kwarg = 'item_pk'
+
+class ListAddShoppingItem(generics.ListCreateAPIView):
+    serializer_class = ShoppingItemSerializer
+    permission_classes = [AllShoppingItemsShoppingListMembersOnly]
+    pagination_class = [LargerResultsSetPagination]
+
+    def perform_create(self, serializer):
+        list_uuid = self.kwargs.get("pk")
+        serializer.save(shopping_list_id=list_uuid)
+
+    def get_queryset(self):
+        shopping_list = self.kwargs["pk"]
+        queryset = self.queryset = ShoppingItem.objects.filter(shopping_list=shopping_list).order_by("purchased")
+        return queryset
