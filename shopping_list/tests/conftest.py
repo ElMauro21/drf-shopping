@@ -1,6 +1,6 @@
 import pytest
 from shopping_list.models import ShoppingItem, ShoppingList
-from django.contrib.auth.models import User
+from accounts.models import CustomUser
 from rest_framework.test import APIClient
 
 @pytest.fixture(scope="session")
@@ -16,7 +16,7 @@ def create_shopping_item():
 @pytest.fixture(scope="session")
 def create_user():
     def _create_user():
-        return User.objects.create_user("Mauro","mauro@example.com","something")
+        return CustomUser.objects.create_user("Mauro","mauro@example.com","something")
     return _create_user
 
 @pytest.fixture(scope="session")

@@ -39,8 +39,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Local apps 
     'shopping_list',
+    'accounts',
     # Third party apps
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
 ]
 
@@ -131,8 +133,22 @@ REST_FRAMEWORK = {
 	"DEFAULT_PERMISSION_CLASSES": [
 	"rest_framework.permissions.IsAuthenticated",
 	],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication"
+    ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 3
+    "PAGE_SIZE": 3,
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "shopping_list.api.throttling.MinuteRateThrottle",
+        "shopping_list.api.throttling.DailyRateThrottle"
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "10/hour",
+        "user_minute": "200/minute",
+        "user_day": "10000/day",
+    }
 }
 
 CORS_ALLOWED_ORIGINS = (
@@ -142,3 +158,5 @@ CORS_ALLOWED_ORIGINS = (
 )
 
 CSRF_TRUSTED_ORIGINS = ["http://localhost:3000"]
+
+AUTH_USER_MODEL = "accounts.CustomUser"

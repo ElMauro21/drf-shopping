@@ -1,10 +1,10 @@
 import pytest
 from django.urls import reverse
 from rest_framework import status
-from django.contrib.auth.models import User
+from accounts.models import CustomUser
 from datetime import datetime, timedelta
 from unittest import mock
-
+from rest_framework.test import APIClient
 
 from shopping_list.models import ShoppingList, ShoppingItem
 
@@ -50,7 +50,7 @@ def test_client_retrieves_only_shopping_lists_they_are_member_of(db, create_auth
     client = create_authenticated_client(user)
     url = reverse("all_shopping_lists")
     create_shopping_list(user, name="Groceries")
-    another_user = User.objects.create_user("test_user","test@example.com","testpassword")
+    another_user = CustomUser.objects.create_user("test_user","test@example.com","testpassword")
     create_shopping_list(another_user, name="Technology")
     response = client.get(url, format="json")
 
@@ -220,7 +220,7 @@ def test_shopping_item_is_deleted(db,create_shopping_item, create_user, create_a
 def test_update_shopping_list_restricted_if_not_member(db, create_user, create_authenticated_client,create_shopping_list):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_list = create_shopping_list(shopping_list_creator)
 
     url = reverse("shopping_list_detail", args=[shopping_list.id])
@@ -235,7 +235,7 @@ def test_update_shopping_list_restricted_if_not_member(db, create_user, create_a
 def test_partial_update_shopping_list_restricted_if_not_member(db, create_user, create_authenticated_client,create_shopping_list):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_list = create_shopping_list(shopping_list_creator)
 
     url = reverse("shopping_list_detail", args=[shopping_list.id])
@@ -251,7 +251,7 @@ def test_partial_update_shopping_list_restricted_if_not_member(db, create_user, 
 def test_delete_shopping_list_restricted_if_not_member(db, create_user, create_authenticated_client, create_shopping_list):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_list = create_shopping_list(shopping_list_creator)
 
     url = reverse("shopping_list_detail", args=[shopping_list.id])
@@ -274,7 +274,7 @@ def test_not_member_of_list_can_not_add_shopping_item(db, create_user, create_au
     user = create_user()
     client = create_authenticated_client(user)
 
-    shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_list = create_shopping_list(shopping_list_creator)
 
     url = reverse("list_add_shopping_item",args=[shopping_list.id])
@@ -306,7 +306,7 @@ def test_admin_can_add_shopping_items(db, create_user, admin_client, create_shop
 def test_shopping_item_detail_access_restricted_if_not_member_of_shopping_list(db, create_user,create_authenticated_client, create_shopping_list, create_shopping_item):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_item = create_shopping_item(name="Chocolate", user=shopping_list_creator)
 
     url = reverse("shopping_item_detail", kwargs={"pk": shopping_item.shopping_list.id, "item_pk": shopping_item.id})
@@ -318,7 +318,7 @@ def test_shopping_item_detail_access_restricted_if_not_member_of_shopping_list(d
 def test_shopping_item_update_restricted_if_not_member_of_shopping_list(db, create_user, create_authenticated_client, create_shopping_item):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_cretor = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_cretor = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_item = create_shopping_item(name="Chocolate", user=shopping_list_cretor)
 
     url = reverse("shopping_item_detail", kwargs={"pk":shopping_item.shopping_list.id, "item_pk": shopping_item.id})
@@ -335,7 +335,7 @@ def test_shopping_item_update_restricted_if_not_member_of_shopping_list(db, crea
 def test_shopping_item_partial_update_restricted_if_not_member_of_shopping_list(db,create_user, create_authenticated_client,create_shopping_item):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shoppin_item = create_shopping_item(name="Chocolate", user=shopping_list_creator)
 
     url = reverse("shopping_item_detail", kwargs={"pk": shoppin_item.shopping_list.id, "item_pk": shoppin_item.id})
@@ -351,7 +351,7 @@ def test_shopping_item_partial_update_restricted_if_not_member_of_shopping_list(
 def test_shopping_item_delete_restricted_if_not_member_of_shopping_list(db, create_user, create_authenticated_client, create_shopping_item):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_creator = User.objects.create_user("Test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("Test_user","test@example.com","testpassword")
     shopping_item = create_shopping_item(name="chocolate", user=shopping_list_creator)
 
     url = reverse("shopping_item_detail",kwargs={"pk": shopping_item.shopping_list.id, "item_pk": shopping_item.id})
@@ -386,7 +386,7 @@ def test_list_shopping_items_is_retrieve_by_shopping_list_member(db,create_user,
 def test_not_member_can_not_retrieve_shopping_items(db, create_user,create_authenticated_client,create_shopping_list, create_shopping_item):
     user = create_user()
     client = create_authenticated_client(user)
-    shopping_list_creator = User.objects.create_user("test_user","test@example.com","testpassword")
+    shopping_list_creator = CustomUser.objects.create_user("test_user","test@example.com","testpassword")
     shopping_item_1 = create_shopping_item(name="Chocolate", user=shopping_list_creator)
 
     url = reverse("list_add_shopping_item",kwargs={"pk": shopping_item_1.shopping_list.id})
@@ -516,3 +516,120 @@ def test_shopping_lists_order_changed_when_item_marked_purchased(db,create_user,
 
         assert response.data["results"][1]["name"] == "Recent"
         assert response.data["results"][0]["name"] == "Older"
+
+def test_call_with_token_authentication(db):
+    username = "AnUSer"
+    password = "something"
+    CustomUser.objects.create_user(username=username,password=password)
+    client = APIClient()
+    token_url = reverse("api_token_auth")
+
+    data = {
+        "username": username,
+        "password": password
+    }
+
+    token_response = client.post(path=token_url, data=data, format="json")
+    token = token_response.data["token"]
+
+    url = reverse("all_shopping_lists")
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token}")
+    response = client.get(path=url, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+
+
+def test_add_members_list_member(db,create_user,create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list(user)
+
+    another_member = CustomUser.objects.create(username="another_member",password="anotherpassword")
+    third_member = CustomUser.objects.create(username="third_member",password="anotherpassword")
+
+    data = {"members": [another_member.id, third_member.id]}
+
+    url = reverse("shopping_list_add_members", args=[shopping_list.id])
+
+    response = client.put(path=url, data=data, format="json")
+
+    assert len(response.data["members"]) == 3
+    assert another_member.id in response.data["members"]
+    assert third_member.id in response.data["members"]
+
+def test_add_members_not_list_member(db, create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    list_creator = CustomUser.objects.create(username="list_creator", password="randompassword")
+    shopping_list = create_shopping_list(list_creator)
+
+    data = {"members": [user.id]}
+
+    url = reverse("shopping_list_add_members", args=[shopping_list.id])
+
+    response = client.put(path=url, data=data, format="json")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+def test_add_members_wrong_data(db, create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list(user)
+
+    data = {"members": [11,13]}
+
+    url = reverse("shopping_list_add_members", args=[shopping_list.id])
+
+    response = client.put(path=url, data=data, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_remove_members_list_member(db,create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list(user)
+
+    another_member = CustomUser.objects.create(username="another_member", password="whocares")
+    third_member = CustomUser.objects.create(username="third_member", password="whocares")
+
+    shopping_list.members.add(another_member)
+    shopping_list.members.add(third_member)
+
+    data = {"members": [another_member.id, third_member.id]}
+
+    url = reverse("shopping_list_remove_members", args=[shopping_list.id])
+    response = client.put(url, data, format="json")
+
+    assert len(response.data["members"]) == 1
+    assert another_member.id not in response.data["members"]
+    assert third_member.id not in response.data["members"]
+
+def test_remove_members_not_list_member(db, create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    list_creator = CustomUser.objects.create(username="list_creator", password="whocares")
+    shopping_list = create_shopping_list(list_creator)
+
+    data = {"members": [user.id]}
+
+    url = reverse("shopping_list_remove_members", args=[shopping_list.id])
+
+    response = client.put(url, data, format="json")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+def test_remove_members_wrong_data(db, create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list(user)
+
+    data = {"members": [11, 13]}
+
+    url = reverse("shopping_list_remove_members", args=[shopping_list.id])
+
+    response = client.put(url, data, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST

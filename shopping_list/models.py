@@ -1,13 +1,14 @@
 import uuid
 
 from django.db import models
+from django.conf import settings
 
 # Create your models here.
 
 class ShoppingList(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, )
     name = models.CharField(max_length=200)
-    members = models.ManyToManyField("auth.User")
+    members = models.ManyToManyField(settings.AUTH_USER_MODEL)
     last_interaction = models.DateTimeField(auto_now=True)
 
     def __str__(self):
